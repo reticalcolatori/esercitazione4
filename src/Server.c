@@ -219,14 +219,38 @@ int main(int argc, char **argv) {
                         struct dirent *currItem;
                         
                         while((currItem = readdir(currDir)) != NULL){ //ciclo su tutti i file della directory
-                            if(currItem->d_type == DT_DIR){
+                            // #define DT_DIR 4 (è definito così, a me segna errore quindi ho messo 4)
+                            //sto controllando che sia una directory
+                            if(currItem->d_type == /*DT_DIR*/ 4 ){
 
+                                //apro la directory di secondo livello da analizzare
+                                DIR *secondLevelDir;
+                                secondLevelDir = opendir(currItem);
+                                struct dirent *secondLevelItem;
+
+                                while((secondLevelItem = readdir(secondLevelDir)) != NULL) {
+                                    //stessa motivazione di prima
+                                    // #define DT_REG 8 (è definito così, a me segna errore quindi ho messo 8)
+                                    //sto controllando che sia un file regolare
+                                    if(currItem->d_type == /*DT_REG*/ 8 )
+                                        //scrivo il nome del file sulla pipe
+                                        write(fdConnect, currItem->d_name, strlen(currItem->d_name));
+                                }
+
+                                closedir(secondLevelDir);
                             }
-                        } 
-                    }
+                        }
+                        closedir(currDir);
+
+                        //devo comunicare al client che ho terminato di inviare
+                        //tutti i nomi di file per la dir che mi ha passato
+                        write(fdConnect, '\0', sizeof(char));
+                        
+                    } //if..else
                     
-                    
-                }
+                } //for
+
+                //il client non vuole più inviarmi nomi di directory, mi ha mandato EOF
             }
         }
 

@@ -256,6 +256,91 @@ int main(int argc, char **argv) {
 
         if(FD_ISSET(udpFd, &fdSet)){
             // Allora ho ricevuto un datagram sulla socket server datagram.
+            int fdCurrFile;  //fd del file aperto
+            int fdtmpFile;  //fd file tmp
+            char nomeFile[DIM_BUFFER];  //nome del file passato
+            char wordToDelete[DIM_BUFFER];  //parola da cancellare passata
+            char currWord[DIM_BUFFER];  //parola da confrontare con quella da eliminare
+            int res;  //intero da inviare al client 
+            int nread;  //numero char letti dal file aperto dalla read
+            char tmpChar;  //carattere letto da inserire nella stringa
+            int pos = 0;  //posizione nella stringa currWord
+            int resCmp;  //risultato della strcmp
+
+            lenAddress=sizeof(struct sockaddr_in);/* valore di ritorno */ 
+
+            //attendo nomeFile e parola dal client
+            if (recvfrom(udpFd, nomeFile, DIM_BUFFER, 0, (struct sockaddr *)&cliaddr, &lenAddress)<0) {
+                perror("recvfrom ");
+                //ha senso fare la continue?
+                continue;
+            }
+
+            //  devo separare *nomeFile* da *wordToDelete* dalla stringa ricevuta 
+            //  TODO:
+
+            if ( ( fdCurrFile = open(nomeFile, O_RDONLY) ) < 0 ) {
+                //non riesco ad aprire il file
+                //Mando come risposta l'errore della open.
+                res = fdCurrFile;
+                //stampa locale di controllo
+                printf("Errore: open file (parte datagram) il file non esiste o non ho i diritti\n");
+    	    }else{
+			    //File aperto
+
+                // LOGICA DI ELIMINAZIONE PAROLE 
+                //  TODO:
+                // 0)creo un file tmp di appoggio per eliminazione parole
+                // 1)leggo un char alla volta, se diverso da ' ' e
+                //   diverso da '\n', lo salvo nella stringa temporanea
+                // 2)quando trovo ' ' o '\n' ho finito una parola, la
+                //   confronto con strcmp e valuto il risultato 
+                // 3)se la parola è diversa da wordToDelete la scrivo su 
+                //   un file tmp e incremento il contatore res (altrimenti nulla)
+                // 4)al termine sovrascrivo il file originario
+
+                //se fallisce cosa segnalo al client??
+                if (fdtmpFile = open("tmp.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644) < 0) {
+                    printf("Errore: apertura file tmp\n");
+                    //ha senso fare la continue?
+                    continue;
+                }
+                
+			    while((nread = read(fdCurrFile, &tmpChar, sizeof(char))) > 0){
+				//controllo che il carattere letto sia della mia parola e non un delimitatore
+				if(tmpChar != ' ' && tmpChar != '\n'){
+                    //ho terminato una parola --> valuto 
+
+                    //aggiungo il terminatore
+                    currWord[pos] = '\0';
+
+                    //confronto le due stringhe
+                    resCmp = strcmp(wordToDelete, currWord);
+                    if (resCmp != 0) {
+                        //le 2 "parole" sono diverse --> la scrivo su file
+                        write(fdtmpFile, currWord, strlen(currWord));
+                        
+                    } else {
+                        //le 2 "parole" sono uguali --> non la scrivo su file e incremento
+                        res++;
+                    }
+
+                    pos=0;
+					
+				}else{
+					//sto ancora leggendo una parola --> aggiungo al currWord
+                    currWord[pos] = tmpChar;
+                    pos++;
+				}
+			}
+
+            // ho finito di esaminare tuto il file, devo sovrascrivere 
+            // e poi inviare risposta al client
+            //TODO:
+
+            //chiudo il file e resetto numero parole eliminate
+			close(fdCurrFile);
+            res = 0;
         }
 
         FD_ZERO(&fdSet); //ciclicamente risetto la maschera dei FD tutti a 0

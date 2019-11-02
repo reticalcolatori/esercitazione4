@@ -37,6 +37,7 @@ int main(int argc, char const *argv[]) {
 	}
 
     int i = 0;
+    char zero = 0;
 
     //Controllo sulla porta
 	while( argv[2][i]!= '\0' ){
@@ -88,7 +89,7 @@ int main(int argc, char const *argv[]) {
     while((fgets(nomeDirettorio, DIM_BUFFER, stdin)) != NULL){
 
         //Invio al server fino a \n quindi non server un +1
-        int lenNomeDirettorio = strlen(nomeDirettorio);
+        int lenNomeDirettorio = strlen(nomeDirettorio) - 1;
 
         //prendo tempo di start
         clock_t begin = clock();
@@ -140,7 +141,7 @@ int main(int argc, char const *argv[]) {
                 //Aggiungo terminatore
                 lineIN[counter] = '\0';
                 printf("%s\n", lineIN);
-            }else if(currCh == '\0'){
+            }else if(currCh == zero){
                 //Terminatore ha finito di mandare i nomi dei file.
                 //Qui dovrei aver il buffer della driver vuoto fino a nuova richiesta.
                 //Aggiungo terminatore

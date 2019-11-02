@@ -33,7 +33,7 @@ int main(int argc, char **argv)
 	char parolaEliminare[LINE_LENGTH];
 	char request[2*LINE_LENGTH];
 
-	char okstr[DIM_BUFFER];
+	char okstr[LINE_LENGTH];
 
 	int i = 0;
 
@@ -105,6 +105,9 @@ int main(int argc, char **argv)
 
 	while ((fgets(nomefile, LINE_LENGTH, stdin)) != NULL )
 	{
+
+		//nomefile --> ciao.txt\n\0
+
 		printf("Nome file: %s\n", nomefile);
 		printf("Inserisci la parola da eliminare:\n");
 
@@ -112,7 +115,8 @@ int main(int argc, char **argv)
             //EOF: esco dal ciclo.
             break;
         }
-				
+
+		/*		
 		//lunghezza nome file:
 		//Non ho bisogno di aggiungere +1 perchè devo contare fino al \n
 		lenNomeFile = strlen(nomefile);
@@ -126,14 +130,19 @@ int main(int argc, char **argv)
 		parolaEliminare[lenParolaEliminare-1] = '\0';
 
 		//Salvo tutto nel buffer request.
-		request[0] = '\0';
-		strcat(request, nomefile);
-		strcat(request, parolaEliminare);
+		*/
+		//-----------------------------------PAPI, perche avrebbe senso mettere in pos 0 uno \0
+		//request[0] = '\0';
+		strncat(request, nomefile, strlen(nomefile) - 1);
+		strcat(request, ",");
+		strncat(request, parolaEliminare, strlen(parolaEliminare) - 1);
+
+		//request --> ciao.txt,prova
 
 		//Lunghezza struttura indirizzo.
 		lenAddress=sizeof(servaddr);
 
-		if(sendto(sd, nomefile, sizeof(char)*(lenNomeFile+lenParolaEliminare), 0, (struct sockaddr *)&servaddr, lenAddress)<0){
+		if(sendto(sd, request, strlen(request), 0, (struct sockaddr *)&servaddr, lenAddress)<0){
 			perror("sendto");
 			printf("nome file, EOF per terminare: ");
 			continue;

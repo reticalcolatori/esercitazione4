@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
@@ -15,6 +15,7 @@
 #include <time.h>
 #include <dirent.h>
 #include <netdb.h>
+#include <math.h>
 
 #define DIM_BUFFER 256
 
@@ -26,6 +27,8 @@
 #define FORK_ERR 6
 #define EXEC_ERR 7
 #define SELECT_ERR 8
+
+#define max(a,b)((a > b) ? a : b)
 
 void gestore(int signo){
 	int stato;
@@ -61,7 +64,7 @@ int main(int argc, char **argv) {
     char *parola;
 
     //Strutture per algoritmo STREAM
-    //--------------------------------------------TODO------------------------------------------------------------
+    char zero = 0;
 
     //Inizializzo il buffer a zero
     memset(requestDatagram, 0, DIM_BUFFER);
@@ -128,8 +131,8 @@ int main(int argc, char **argv) {
 	}
     
     // Eseguo il bind della socket datagram
-	if (bind(listenFd,(struct sockaddr *) &servaddr, sizeof(servaddr)) < 0)	{
-		perror("Errore binding socket stream");
+	if (bind(udpFd,(struct sockaddr *) &servaddr, sizeof(servaddr)) < 0)	{
+		perror("Errore binding socket datagram");
 		exit(NETW_ERR);
 	}
 
@@ -140,7 +143,7 @@ int main(int argc, char **argv) {
 	}
 
 	// Imposto handler per la gestione del segnale SIG_CHLD
-	signal(SIGCHLD, gestore);
+	signal(SIGCHLD, SIG_IGN);
 
 //---------------------------------------TERMINATO SETTING DELLE SOCKET STREAM/UDP----------------------------------------------
 
@@ -185,15 +188,23 @@ int main(int argc, char **argv) {
             int pid = fork();
 
             if(pid == 0){ // sono il figlio ciclicamente andrò a ricevere nomi di direttori (STESSA connessione)
-                close(listenFd);
+                close(listenFd); //chiudo la socket di ascolto di mio padre
 
+                printf("SERVER: sono dentro al figlio\n");
                 int nRead;
                 char nomeFile[DIM_BUFFER];
+
+                char errorMsg[DIM_BUFFER];
 
                 for(;;){ // ciclo infinito di ricezione del nome del direttorio sulla stessa directory
 
                     if ((nRead = read(fdConnect, nomeFile, sizeof(nomeFile))) < 0) {
-                        perror("Errore nella lettura del nome del file");
+                        perror("Errore nella lettura del nome del file.");
+                        *errorMsg = "Errore nella lettura del nome del file.";
+                        if (write(fdConnect, errorMsg, strlen(errorMsg)) < 0) {
+                            perror("Errore scrittura su socket connessa");
+                            close(fdConnect);
+                        }
                         continue;
                     } else if (nRead == 0) {
                         printf("SERVER STREAM (FIGLIO): ricevuto EOF, termino.\n");
@@ -201,12 +212,14 @@ int main(int argc, char **argv) {
                     } else {
                         // Ho letto il nome del file, logica applicativa
                         DIR *currDir;
-                        
+                        nomeFile[strlen(nomeFile)] = '\0';
+
                         // Verifico se esiste e ne possiedo i diritti
                         currDir = opendir(nomeFile);
                         if(currDir == NULL){
+                            printf("SERVER: errore apertura direttorio %s\n", nomeFile);
                             // il file che mi hai passato o non esiste o non hai i diritti te lo comunico e rileggo
-                            char *errorMsg = "Directory non presente o non possiedi i diritti.";
+                            *errorMsg = "Directory non presente o non possiedi i diritti.";
                             if (write(fdConnect, errorMsg, strlen(errorMsg)) < 0) {
                                 perror("Errore scrittura su socket connessa");
                                 closedir(currDir);
@@ -214,18 +227,23 @@ int main(int argc, char **argv) {
                             }
                             continue;
                         }
+                        printf("SERVER: ricevuto direttorio %s e aperto correttamente\n", nomeFile);
 
                         // Ho aperto la directory richiesta dal cliente analizzo il contenuto e invio i nomi dei file 2° liv.
                         struct dirent *currItem;
                         
                         while((currItem = readdir(currDir)) != NULL){ //ciclo su tutti i file della directory
+
+                            printf("SERVER: trovato item %s di tipo %d dentro al direttorio %s", currItem->d_name, currItem->d_type, nomeFile);
+
+
                             // #define DT_DIR 4 (è definito così, a me segna errore quindi ho messo 4)
                             //sto controllando che sia una directory
                             if(currItem->d_type == /*DT_DIR*/ 4 ){
 
                                 //apro la directory di secondo livello da analizzare
                                 DIR *secondLevelDir;
-                                secondLevelDir = opendir(currItem);
+                                secondLevelDir = opendir(currItem->d_name);
                                 struct dirent *secondLevelItem;
 
                                 while((secondLevelItem = readdir(secondLevelDir)) != NULL) {
@@ -233,7 +251,7 @@ int main(int argc, char **argv) {
                                     // #define DT_REG 8 (è definito così, a me segna errore quindi ho messo 8)
                                     //sto controllando che sia un file regolare
                                     if(currItem->d_type == /*DT_REG*/ 8 )
-                                        //scrivo il nome del file sulla pipe
+                                        //scrivo il nome del file sulla socket connessa
                                         write(fdConnect, currItem->d_name, strlen(currItem->d_name));
                                 }
 
@@ -244,13 +262,23 @@ int main(int argc, char **argv) {
 
                         //devo comunicare al client che ho terminato di inviare
                         //tutti i nomi di file per la dir che mi ha passato
-                        write(fdConnect, '\0', sizeof(char));
+                        write(fdConnect, &zero, sizeof(char));
                         
                     } //if..else
                     
                 } //for
+                
+                // Quando esco dal ciclo mi devo ricordare di chiudere la socket connessa ho ricevuto EOF!
+                close(fdConnect);
 
                 //il client non vuole più inviarmi nomi di directory, mi ha mandato EOF
+                exit(0);
+
+            } else if (pid > 0) { //ramo del padre che ciclicamente deve solo chiudere le socket connesse che si andranno via via creando
+                close(fdConnect);
+            } else {
+                perror("Errore nella creazione di un figlio.");
+                exit(FORK_ERR);
             }
         }
 
@@ -258,34 +286,49 @@ int main(int argc, char **argv) {
             // Allora ho ricevuto un datagram sulla socket server datagram.
             int fdCurrFile;  //fd del file aperto
             int fdtmpFile;  //fd file tmp
-            char nomeFile[DIM_BUFFER];  //nome del file passato
-            char wordToDelete[DIM_BUFFER];  //parola da cancellare passata
+            char request[DIM_BUFFER];  //nome del file passato
+            char *fileName;
+            char *wordToDelete;  //parola da cancellare passata
             char currWord[DIM_BUFFER];  //parola da confrontare con quella da eliminare
             int res;  //intero da inviare al client 
             int nread;  //numero char letti dal file aperto dalla read
             char tmpChar;  //carattere letto da inserire nella stringa
             int pos = 0;  //posizione nella stringa currWord
             int resCmp;  //risultato della strcmp
+            int dimCurrFile = 0;
 
             lenAddress=sizeof(struct sockaddr_in);/* valore di ritorno */ 
 
             //attendo nomeFile e parola dal client
-            if (recvfrom(udpFd, nomeFile, DIM_BUFFER, 0, (struct sockaddr *)&cliaddr, &lenAddress)<0) {
+            if (recvfrom(udpFd, request, DIM_BUFFER, 0, (struct sockaddr *)&cliaddr, &lenAddress)<0) {
                 perror("recvfrom ");
+                //qua DEVO morire nella comunicazione con il client comunico un intero negativo
                 //ha senso fare la continue?
+                res = -1;
+                if (sendto(udpFd, &res, sizeof(res), 0, (struct sockaddr *)&cliaddr, lenAddress)<0) {
+                    perror("sendto ");
+                }
                 continue;
             }
 
             //  devo separare *nomeFile* da *wordToDelete* dalla stringa ricevuta 
             //  TODO:
+            //ciao.txt,prova
+            const char *delimiter = ",";
+            fileName = strtok(request, delimiter);
+            wordToDelete = strtok(NULL, delimiter);
 
-            if ( ( fdCurrFile = open(nomeFile, O_RDONLY) ) < 0 ) {
+            if (( fdCurrFile = open(fileName, O_RDWR)) < 0 ) {
                 //non riesco ad aprire il file
                 //Mando come risposta l'errore della open.
                 res = fdCurrFile;
                 //stampa locale di controllo
                 printf("Errore: open file (parte datagram) il file non esiste o non ho i diritti\n");
-    	    }else{
+                if (sendto(udpFd, &res, sizeof(res), 0, (struct sockaddr *)&cliaddr, lenAddress)<0) {
+                    perror("Errore sendto res");
+                }
+                continue;
+    	    } else {
 			    //File aperto
 
                 // LOGICA DI ELIMINAZIONE PAROLE 
@@ -302,128 +345,70 @@ int main(int argc, char **argv) {
                 //se fallisce cosa segnalo al client??
                 if (fdtmpFile = open("tmp.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644) < 0) {
                     printf("Errore: apertura file tmp\n");
+                    res = -1;
                     //ha senso fare la continue?
+                    if (sendto(udpFd, &res, sizeof(res), 0, (struct sockaddr *)&cliaddr, lenAddress)<0) {
+                        perror("sendto ");
+                    }
                     continue;
                 }
                 
 			    while((nread = read(fdCurrFile, &tmpChar, sizeof(char))) > 0){
+                    dimCurrFile += nread;
 				//controllo che il carattere letto sia della mia parola e non un delimitatore
-				if(tmpChar != ' ' && tmpChar != '\n'){
-                    //ho terminato una parola --> valuto 
+                    if(tmpChar == ' ' || tmpChar == '\n'){
+                        //ho terminato una parola --> valuto 
 
-                    //aggiungo il terminatore
-                    currWord[pos] = '\0';
+                        //aggiungo il terminatore
+                        currWord[pos] = '\0';
 
-                    //confronto le due stringhe
-                    resCmp = strcmp(wordToDelete, currWord);
-                    if (resCmp != 0) {
-                        //le 2 "parole" sono diverse --> la scrivo su file
-                        write(fdtmpFile, currWord, strlen(currWord));
+                        //confronto le due stringhe
+                        resCmp = strcmp(wordToDelete, currWord);
+                        if (resCmp != 0) {
+                            //le 2 "parole" sono diverse --> la scrivo su file
+                            write(fdtmpFile, currWord, strlen(currWord));
+                        } else {
+                            //le 2 "parole" sono uguali --> non la scrivo su file e incremento
+                            res++;
+                        }
+
+                        pos=0;
                         
                     } else {
-                        //le 2 "parole" sono uguali --> non la scrivo su file e incremento
-                        res++;
+                        //sto ancora leggendo una parola --> aggiungo al currWord
+                        currWord[pos] = tmpChar;
+                        pos++;
                     }
+			    }
 
-                    pos=0;
-					
-				}else{
-					//sto ancora leggendo una parola --> aggiungo al currWord
-                    currWord[pos] = tmpChar;
-                    pos++;
-				}
-			}
+                ftruncate(fdCurrFile, 0);
+                ftruncate(fdCurrFile, dimCurrFile);
+                dimCurrFile = 0;
+                
 
-            // ho finito di esaminare tuto il file, devo sovrascrivere 
-            // e poi inviare risposta al client
-            //TODO:
+                // ho finito di esaminare tuto il file, devo sovrascrivere 
+                // e poi inviare risposta al client
+                char ch;
+                while (read(fdtmpFile, &ch, sizeof(char)) > 0)
+                    write(fdCurrFile, &ch, sizeof(char));
+                
+                //Invio risposta.
+                if (sendto(udpFd, &res, sizeof(res), 0, (struct sockaddr *)&cliaddr, lenAddress)<0) {
+                    perror("sendto ");
+                    continue;
+                }
 
-            //chiudo il file e resetto numero parole eliminate
-			close(fdCurrFile);
-            res = 0;
-        }
+                //chiudo il file e resetto numero parole eliminate
+                close(fdCurrFile);
+                close(fdtmpFile);
+                res = 0;
+
+            }
+        } //ifset datagram
 
         FD_ZERO(&fdSet); //ciclicamente risetto la maschera dei FD tutti a 0
-        
+    } //for
 
+    
 
-
-        
-
-		if (fork() == 0){ // figlio itera e processa le richieste fino a quando non riceve EOF!
-			/*Chiusura FileDescr non utilizzati*/
-			close(listen_sd);
-
-            //Recupero informazioni client per stampa.
-			host = gethostbyaddr( (char *) &cliaddr.sin_addr, sizeof(cliaddr.sin_addr), AF_INET);
-			if (host == NULL){
-				perror("Impossibile risalire alle informazioni dell'host a partire dal suo indirizzo.\n");
-				continue;
-			} else 
-				printf("Server (figlio): host client è %s\n", host->h_name);
-
-            //Leggo il numero della linea da rimuovere.
-            if(read(conn_sd, &deleteLine, sizeof(long)) < 0){
-                //Non riesco a leggere la linea da eliminare esco.
-                perror("Impossibile leggere il numero della linea da eliminare.");
-                exit(IO_ERR);
-            }
-			//se tutto ok non eseguo controlli sono tutti eseguiti dal client nel caso non invia nemmeno la richiesta al server.
-			printf("Linea da cancellare: %ld\n", deleteLine);
-			
-            //Posso procedere:
-            //Inizio a leggere il file
-            //Mentre leggo conto le righe.
-            //Se la riga è quella da eliminare non invio indietro.
-            
-            //Contatore dei caratteri
-            num = 0;
-
-			//prendo tempo di start
-        	clock_t begin = clock();
-
-			while((read(conn_sd, &tmpChar, sizeof(char))) > 0){
-
-                //Salvo il carattere in un buffer temporaneo.
-                buff[num] = tmpChar;
-
-                //Se il carattere è il fine linea:
-                if(buff[num] == '\n'){
-                    //Se consideriamo come prima linea la 1 allora faccio prima:
-                    currentLine++;
-
-                    //Controllo linea da saltare
-                    if(currentLine != deleteLine){
-                        //Scrivo indietro la riga con \n finale e la stampo!
-						printf("SERVER: rispedisco indietro la linea --> %s\n", buff);
-                        write(conn_sd, buff, strlen(buff));
-                    }
-
-                    //Resetto il contatore.
-                    num = 0;
-                } else 
-					num++;
-            }
-
-			// Chiusura socket in spedizione -> invio dell'EOF
-			shutdown(conn_sd, 1);
-			shutdown(conn_sd, 0);
-       		close(conn_sd);
-
-
-			//prendo il tempo finale
-        	clock_t end = clock();
-        	double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        	printf("CLIENT: tempo di esecuzione %f sec\n", time_spent);
-
-            if(nread < 0){
-                perror("Errore lettura file");
-                exit(IO_ERR);
-            }
-
-		} // figlio
-
-        //PADRE
-		close(conn_sd);  // padre chiude socket di connessione non di ascolto
-	} // ciclo for infinito
 }

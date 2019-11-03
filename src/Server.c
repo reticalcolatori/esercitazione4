@@ -340,8 +340,11 @@ int main(int argc, char **argv) {
             }
 
             //  devo separare *nomeFile* da *wordToDelete* dalla stringa ricevuta 
-            //  TODO:
+            //  TODO:fileName, wordToDelete
             //ciao.txt,prova
+            printf("SERVER DATAGRAM: ricevuta richiesta %s\n", request);
+
+
             const char *delimiter = ",";
             fileName = strtok(request, delimiter);
             wordToDelete = strtok(NULL, delimiter);
@@ -373,7 +376,7 @@ int main(int argc, char **argv) {
                 // 4)al termine sovrascrivo il file originario
 
                 //se fallisce cosa segnalo al client??
-                if (fdtmpFile = open("tmp.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644) < 0) {
+                if ((fdtmpFile = open("temp", O_RDWR | O_CREAT | O_TRUNC, 0666)) < 0) {
                     printf("Errore: apertura file tmp\n");
                     res = -1;
                     //ha senso fare la continue?
@@ -391,32 +394,39 @@ int main(int argc, char **argv) {
                         //ho terminato una parola --> valuto 
 
                         //aggiungo il terminatore
-                        currWord[pos] = '\0';
+                        currWord[pos] = '\0'; 
 
                         //confronto le due stringhe
                         resCmp = strcmp(wordToDelete, currWord);
                         if (resCmp != 0) {
                             //le 2 "parole" sono diverse --> la scrivo su file tmp
-                            write(fdtmpFile, currWord, strlen(currWord));
+                            //write(fdtmpFile, currWord, strlen(currWord) + 1);
+                            if(write(fdtmpFile, currWord, strlen(currWord)) < 0){
+                                perror("Errore scrittura su file temporaneo");
+                            }
+                            write(fdtmpFile, &tmpChar, sizeof(char));
                         } else {
                             //le 2 "parole" sono uguali --> non la scrivo su file e incremento
                             res++;
                         }
 
+                        strcpy(currWord, "");
                         pos=0;
+
                         
                     } else {
                         //sto ancora leggendo una parola --> aggiungo al currWord
-                        currWord[pos] = tmpChar;
-                        pos++;
+                        currWord[pos++] = tmpChar;
                     }
-			    }
+			    } //terminato di processare il file copio il tmp e invio risposta che sta in res
 
-                /*
-                ftruncate(fdCurrFile, 0);
-                ftruncate(fdCurrFile, dimCurrFile);
-                dimCurrFile = 0;
-                
+                close(fdCurrFile);
+                if (( fdCurrFile = open(fileName, O_WRONLY | O_TRUNC)) < 0 ) { //riaperto in sovrascrittura
+                    perror("Errore riapertura file da sovrascrivere");
+                }
+
+                //sposto lseek IO pointer del tmp all'inizio
+                lseek(fdtmpFile, 0, SEEK_SET);
 
                 // ho finito di esaminare tuto il file, devo sovrascrivere 
                 // e poi inviare risposta al client
@@ -425,17 +435,22 @@ int main(int argc, char **argv) {
                     write(fdCurrFile, &ch, sizeof(char));
                 
                 //Invio risposta.
+                char answer[DIM_BUFFER];
+                sprintf(answer, "%d", res);
                 if (sendto(udpFd, &res, sizeof(res), 0, (struct sockaddr *)&cliaddr, lenAddress)<0) {
                     perror("sendto ");
                     continue;
                 }
 
+                //ripristino il contenuto della variabile dove immagazzino le richieste degli utenti
+                strcpy(request, "");
+
                 //chiudo il file e resetto numero parole eliminate
                 close(fdCurrFile);
                 close(fdtmpFile);
                 res = 0;
-                */
             }
+
         } //ifset datagram
 
         FD_ZERO(&fdSet); //ciclicamente risetto la maschera dei FD tutti a 0

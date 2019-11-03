@@ -30,6 +30,7 @@ int main(int argc, char **argv)
 	char nomefile[LINE_LENGTH];
 	char parolaEliminare[LINE_LENGTH];
 	char request[2*LINE_LENGTH];
+	char answer[LINE_LENGTH];
 
 	char okstr[LINE_LENGTH];
 
@@ -155,17 +156,15 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		//Conversione in formato locale.
-		ris = (int) ntohl(ris);
-
 		if(ris >= 0){
 			printf("Numero occorrenze eliminate : %i\n", ris);
 		}else{
 			printf("Errore dal server : %i\n", ris);
 		}
 
+		strcpy(request, "");
 		printf("nome file, EOF per terminare: \n");
-		gets(okstr); 
+		//gets(okstr); 
 		//consumo il restante della linea (\n compreso), altrimenti alla prossima iterazione la fgets avrebbe già
         //il resto della linea da leggere
 

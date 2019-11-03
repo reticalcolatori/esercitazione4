@@ -29,6 +29,18 @@
 #define SELECT_ERR 8
 
 #define max(a,b)((a > b) ? a : b)
+/*
+int is_regular_file(const char *path) {
+    struct stat path_stat;
+    stat(path, &path_stat);
+    return S_ISREG(path_stat.st_mode);
+}
+
+int is_directory(const char *path) {
+    struct stat path_stat;
+    stat(path, &path_stat);
+    return S_ISDIR(path_stat.st_mode);
+}*/
 
 void gestore(int signo){
 	int stato;
@@ -200,11 +212,12 @@ int main(int argc, char **argv) {
 
                     if ((nRead = read(fdConnect, nomeFile, sizeof(nomeFile))) < 0) {
                         perror("Errore nella lettura del nome del file.");
-                        *errorMsg = "Errore nella lettura del nome del file.";
+                        strcpy(errorMsg, "Errore nella lettura del nome del file.");
                         if (write(fdConnect, errorMsg, strlen(errorMsg)) < 0) {
                             perror("Errore scrittura su socket connessa");
                             close(fdConnect);
                         }
+                        write(fdConnect, &zero, sizeof(char));
                         continue;
                     } else if (nRead == 0) {
                         printf("SERVER STREAM (FIGLIO): ricevuto EOF, termino.\n");
@@ -212,52 +225,91 @@ int main(int argc, char **argv) {
                     } else {
                         // Ho letto il nome del file, logica applicativa
                         DIR *currDir;
-                        nomeFile[strlen(nomeFile)] = '\0';
+                        struct dirent *currItem;
 
                         // Verifico se esiste e ne possiedo i diritti
                         currDir = opendir(nomeFile);
+
+                        /*RISOLTO QUESTO SOLO PER DEBUG
+                        while((currItem = readdir(currDir)) != NULL){
+                            printf("%s/%s\n", nomeFile, currItem->d_name);
+                            
+                            if(currItem->d_type ==  4 && (strcmp(".", currItem->d_name) != 0) && (strcmp("..", currItem->d_name) != 0)){
+                                printf("Item %s è una cartella la apro e cerco le sottodir!\n", currItem->d_name);
+
+                                DIR *secondLevelDir;
+                                char subdirName[DIM_BUFFER];
+                                strcpy(subdirName, nomeFile);
+                                strcat(subdirName, "/");
+                                strcat(subdirName, currItem->d_name);
+                                printf("SUBDIR NAME = %s\n", subdirName);
+                                secondLevelDir = opendir(subdirName);
+                                struct dirent *secondLevelItem;
+
+                                if(secondLevelDir == NULL){
+                                    perror("Unable to open the subdir");
+                                }
+                                while((secondLevelItem = readdir(secondLevelDir)) != NULL) {
+                                    printf("%s/%s\n", currItem->d_name, secondLevelItem->d_name);
+
+                                }
+                            }
+
+                            
+
+                        }
+                        */
                         if(currDir == NULL){
                             printf("SERVER: errore apertura direttorio %s\n", nomeFile);
                             // il file che mi hai passato o non esiste o non hai i diritti te lo comunico e rileggo
-                            *errorMsg = "Directory non presente o non possiedi i diritti.";
+                            strcpy(errorMsg, "Errore nella lettura del nome del file.");  
                             if (write(fdConnect, errorMsg, strlen(errorMsg)) < 0) {
                                 perror("Errore scrittura su socket connessa");
                                 closedir(currDir);
                                 close(fdConnect);
                             }
+                            write(fdConnect, &zero, sizeof(char));
                             continue;
                         }
                         printf("SERVER: ricevuto direttorio %s e aperto correttamente\n", nomeFile);
 
                         // Ho aperto la directory richiesta dal cliente analizzo il contenuto e invio i nomi dei file 2° liv.
-                        struct dirent *currItem;
                         
                         while((currItem = readdir(currDir)) != NULL){ //ciclo su tutti i file della directory
 
-                            printf("SERVER: trovato item %s di tipo %d dentro al direttorio %s", currItem->d_name, currItem->d_type, nomeFile);
-
-
                             // #define DT_DIR 4 (è definito così, a me segna errore quindi ho messo 4)
-                            //sto controllando che sia una directory
-                            if(currItem->d_type == /*DT_DIR*/ 4 ){
+                            //sto controllando che sia una directory DT_DIR
+                            if(currItem->d_type ==  4 && (strcmp(".", currItem->d_name) != 0) && (strcmp("..", currItem->d_name) != 0)){
 
                                 //apro la directory di secondo livello da analizzare
                                 DIR *secondLevelDir;
-                                secondLevelDir = opendir(currItem->d_name);
+                                char subdirName[DIM_BUFFER];
+                                char fileName[DIM_BUFFER];
+                                strcpy(subdirName, nomeFile);
+                                strcat(subdirName, "/");
+                                strcat(subdirName, currItem->d_name);
+                                printf("SUBDIR NAME = %s\n", subdirName);
+                                secondLevelDir = opendir(subdirName);
                                 struct dirent *secondLevelItem;
 
                                 while((secondLevelItem = readdir(secondLevelDir)) != NULL) {
                                     //stessa motivazione di prima
                                     // #define DT_REG 8 (è definito così, a me segna errore quindi ho messo 8)
-                                    //sto controllando che sia un file regolare
-                                    if(currItem->d_type == /*DT_REG*/ 8 )
-                                        //scrivo il nome del file sulla socket connessa
-                                        write(fdConnect, currItem->d_name, strlen(currItem->d_name));
+                                    //sto controllando che sia un file regolare DT_REG
+                                    if(secondLevelItem->d_type ==  8){ //scrivo il nome del file sulla socket connessa
+                                        printf("Lunghezza nome del file da scrivere %s = %ld\n", secondLevelItem->d_name, strlen(secondLevelItem->d_name));
+                                        strcpy(fileName, secondLevelItem->d_name);
+                                        fileName[strlen(fileName)] = '\n';
+                                        write(fdConnect, fileName, strlen(fileName) + 1);
+                                        printf("trovato file nella sottodirectory %s --> %s\n", subdirName, secondLevelItem->d_name);
+                                        printf("Lo comunico al client\n");
+                                    }
                                 }
 
                                 closedir(secondLevelDir);
-                            }
-                        }
+                            } //if --> se file che analizzo dal direttorio principale è un direttorio
+                        } //while --> fino a quando ho elementi nella cartella passata
+
                         closedir(currDir);
 
                         //devo comunicare al client che ho terminato di inviare
@@ -269,10 +321,10 @@ int main(int argc, char **argv) {
                 } //for
                 
                 // Quando esco dal ciclo mi devo ricordare di chiudere la socket connessa ho ricevuto EOF!
-                close(fdConnect);
+                //------------------ASPETTA PRIMA VERIFICA CHE TUTTO OKclose(fdConnect);
 
                 //il client non vuole più inviarmi nomi di directory, mi ha mandato EOF
-                exit(0);
+                //exit(0);
 
             } else if (pid > 0) { //ramo del padre che ciclicamente deve solo chiudere le socket connesse che si andranno via via creando
                 close(fdConnect);

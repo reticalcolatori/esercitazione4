@@ -90,6 +90,7 @@ int main(int argc, char const *argv[]) {
 
         //Invio al server fino a \n quindi non server un +1
         int lenNomeDirettorio = strlen(nomeDirettorio) - 1;
+        nomeDirettorio[lenNomeDirettorio] = '\0';
 
         //prendo tempo di start
         clock_t begin = clock();
@@ -114,10 +115,14 @@ int main(int argc, char const *argv[]) {
             printf("Client: correttamente connesso al server!\n");
         }
 
+        for (int i = 0; i < strlen(nomeDirettorio); i++)
+        {
+            printf("CLIENT NOME DIRETTORIO: %d --> %c\n", i, nomeDirettorio[i]);
+        }
         
 
         //Invio al server 
-        if((write(fdSocket, &nomeDirettorio, sizeof(char)*lenNomeDirettorio)) < 0){
+        if((write(fdSocket, nomeDirettorio, strlen(nomeDirettorio)+1)) < 0){
             perror("Errore durante la scrittura del nome del direttorio al server.");
             //qua sarebbe contro protocollo proseguire dall'altro lato ho il server che si aspetta proprio il nome del direttorio
             //--> chiudo così dopo un po' anche il server si accorgerà che qualcosa non è andato e chiuderà
@@ -135,7 +140,17 @@ int main(int argc, char const *argv[]) {
         int counter = 0;
         int nread = 0;
 
+        printf("CLIENT: in attesa di ricevere risposta dal server...\n");
+
         while((nread = read(fdSocket, &currCh, sizeof(char))) > 0){
+            printf("%c", currCh);
+            
+            if(currCh == zero){
+                printf("CLIENT: terminato di ricevere i nomi dei file per la directory corrente!\n");
+                break;
+            }
+
+            /*
             if(currCh == '\n'){
                 //Fine linea invia ancora.
                 //Aggiungo terminatore
@@ -145,14 +160,16 @@ int main(int argc, char const *argv[]) {
                 //Terminatore ha finito di mandare i nomi dei file.
                 //Qui dovrei aver il buffer della driver vuoto fino a nuova richiesta.
                 //Aggiungo terminatore
+                printf("CLIENT: ricevuto il carattere 0 che mi indica che ho finito di ricevere i file della directory corrente!\n");
                 lineIN[counter] = '\0';
-                printf("%s\n", lineIN);
+               //-------------------------------- printf("%s\n", lineIN);
                 //esco
                 break;
             }else{
                 //Sto leggendo la riga.
                 lineIN[counter++] = currCh;
             }
+            */
         }             
 
         //Controllo sul read:

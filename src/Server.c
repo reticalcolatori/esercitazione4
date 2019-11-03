@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
 
                     if ((nRead = read(fdConnect, nomeFile, sizeof(nomeFile))) < 0) {
                         perror("Errore nella lettura del nome del file.");
-                        strcpy(errorMsg, "Errore nella lettura del nome del file.");
+                        strcpy(errorMsg, "Errore nella lettura del nome del file.\n");
                         if (write(fdConnect, errorMsg, strlen(errorMsg)) < 0) {
                             perror("Errore scrittura su socket connessa");
                             close(fdConnect);
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
                         write(fdConnect, &zero, sizeof(char));
                         continue;
                     } else if (nRead == 0) {
-                        printf("SERVER STREAM (FIGLIO): ricevuto EOF, termino.\n");
+                        printf("SERVER FIGLIO (%d): ricevuto EOF, termino.\n", getpid());
                         break;
                     } else {
                         // Ho letto il nome del file, logica applicativa
@@ -230,39 +230,10 @@ int main(int argc, char **argv) {
                         // Verifico se esiste e ne possiedo i diritti
                         currDir = opendir(nomeFile);
 
-                        /*RISOLTO QUESTO SOLO PER DEBUG
-                        while((currItem = readdir(currDir)) != NULL){
-                            printf("%s/%s\n", nomeFile, currItem->d_name);
-                            
-                            if(currItem->d_type ==  4 && (strcmp(".", currItem->d_name) != 0) && (strcmp("..", currItem->d_name) != 0)){
-                                printf("Item %s è una cartella la apro e cerco le sottodir!\n", currItem->d_name);
-
-                                DIR *secondLevelDir;
-                                char subdirName[DIM_BUFFER];
-                                strcpy(subdirName, nomeFile);
-                                strcat(subdirName, "/");
-                                strcat(subdirName, currItem->d_name);
-                                printf("SUBDIR NAME = %s\n", subdirName);
-                                secondLevelDir = opendir(subdirName);
-                                struct dirent *secondLevelItem;
-
-                                if(secondLevelDir == NULL){
-                                    perror("Unable to open the subdir");
-                                }
-                                while((secondLevelItem = readdir(secondLevelDir)) != NULL) {
-                                    printf("%s/%s\n", currItem->d_name, secondLevelItem->d_name);
-
-                                }
-                            }
-
-                            
-
-                        }
-                        */
                         if(currDir == NULL){
-                            printf("SERVER: errore apertura direttorio %s\n", nomeFile);
+                            printf("SERVER FIGLIO (%d): errore apertura direttorio %s\n", getpid(), nomeFile);
                             // il file che mi hai passato o non esiste o non hai i diritti te lo comunico e rileggo
-                            strcpy(errorMsg, "Errore nella lettura del nome del file.");  
+                            strcpy(errorMsg, "Errore nella lettura del nome del file.\n");  
                             if (write(fdConnect, errorMsg, strlen(errorMsg)) < 0) {
                                 perror("Errore scrittura su socket connessa");
                                 closedir(currDir);
@@ -271,7 +242,7 @@ int main(int argc, char **argv) {
                             write(fdConnect, &zero, sizeof(char));
                             continue;
                         }
-                        printf("SERVER: ricevuto direttorio %s e aperto correttamente\n", nomeFile);
+                        printf("SERVER FIGLIO (%d): ricevuto direttorio %s e aperto correttamente\n", getpid(), nomeFile);
 
                         // Ho aperto la directory richiesta dal cliente analizzo il contenuto e invio i nomi dei file 2° liv.
                         
@@ -297,11 +268,13 @@ int main(int argc, char **argv) {
                                     // #define DT_REG 8 (è definito così, a me segna errore quindi ho messo 8)
                                     //sto controllando che sia un file regolare DT_REG
                                     if(secondLevelItem->d_type ==  8){ //scrivo il nome del file sulla socket connessa
-                                        printf("Lunghezza nome del file da scrivere %s = %ld\n", secondLevelItem->d_name, strlen(secondLevelItem->d_name));
                                         strcpy(fileName, secondLevelItem->d_name);
                                         fileName[strlen(fileName)] = '\n';
-                                        write(fdConnect, fileName, strlen(fileName) + 1);
-                                        printf("trovato file nella sottodirectory %s --> %s\n", subdirName, secondLevelItem->d_name);
+
+                                        //stampo tutto \n compreso strlen conta tutto tranne eventuale \0
+                                        // ATTENZIONE: problema è che per C 0 e \0 sono uguali!!!
+                                        write(fdConnect, fileName, strlen(fileName));
+                                        printf("Trovato file nella sottodirectory %s --> %s\n", subdirName, secondLevelItem->d_name);
                                         printf("Lo comunico al client\n");
                                     }
                                 }
@@ -312,6 +285,9 @@ int main(int argc, char **argv) {
 
                         closedir(currDir);
 
+                        // Server ha terminato di rispondere al client per quella richiesta
+                        printf("SERVER FIGLIO (%d): ho terminato di servire la richiesta per il direttorio %s\n", getpid(), nomeFile);
+
                         //devo comunicare al client che ho terminato di inviare
                         //tutti i nomi di file per la dir che mi ha passato
                         write(fdConnect, &zero, sizeof(char));
@@ -321,10 +297,10 @@ int main(int argc, char **argv) {
                 } //for
                 
                 // Quando esco dal ciclo mi devo ricordare di chiudere la socket connessa ho ricevuto EOF!
-                //------------------ASPETTA PRIMA VERIFICA CHE TUTTO OKclose(fdConnect);
+                close(fdConnect);
 
                 //il client non vuole più inviarmi nomi di directory, mi ha mandato EOF
-                //exit(0);
+                exit(0);
 
             } else if (pid > 0) { //ramo del padre che ciclicamente deve solo chiudere le socket connesse che si andranno via via creando
                 close(fdConnect);
@@ -370,6 +346,8 @@ int main(int argc, char **argv) {
             fileName = strtok(request, delimiter);
             wordToDelete = strtok(NULL, delimiter);
 
+            printf("SERVER DATAGRAM: ricevuto file %s e parola da eliminare %s\n", fileName, wordToDelete);
+
             if (( fdCurrFile = open(fileName, O_RDWR)) < 0 ) {
                 //non riesco ad aprire il file
                 //Mando come risposta l'errore della open.
@@ -407,7 +385,8 @@ int main(int argc, char **argv) {
                 
 			    while((nread = read(fdCurrFile, &tmpChar, sizeof(char))) > 0){
                     dimCurrFile += nread;
-				//controllo che il carattere letto sia della mia parola e non un delimitatore
+
+				    //controllo che il carattere letto sia della mia parola e non un delimitatore
                     if(tmpChar == ' ' || tmpChar == '\n'){
                         //ho terminato una parola --> valuto 
 
@@ -417,7 +396,7 @@ int main(int argc, char **argv) {
                         //confronto le due stringhe
                         resCmp = strcmp(wordToDelete, currWord);
                         if (resCmp != 0) {
-                            //le 2 "parole" sono diverse --> la scrivo su file
+                            //le 2 "parole" sono diverse --> la scrivo su file tmp
                             write(fdtmpFile, currWord, strlen(currWord));
                         } else {
                             //le 2 "parole" sono uguali --> non la scrivo su file e incremento
@@ -433,6 +412,7 @@ int main(int argc, char **argv) {
                     }
 			    }
 
+                /*
                 ftruncate(fdCurrFile, 0);
                 ftruncate(fdCurrFile, dimCurrFile);
                 dimCurrFile = 0;
@@ -454,7 +434,7 @@ int main(int argc, char **argv) {
                 close(fdCurrFile);
                 close(fdtmpFile);
                 res = 0;
-
+                */
             }
         } //ifset datagram
 

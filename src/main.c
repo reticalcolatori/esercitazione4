@@ -20,16 +20,11 @@
 
 int main(int argc, char const *argv[])
 {
-    char *dir = "provadir";
+    char zero = 0;
+    char terminatore = '\0';
 
-    DIR *currDir;
-    currDir = opendir(dir);
-
-    struct dirent *currItem;
-
-    while((currItem = readdir(currDir)) != NULL){
-        printf("%s/%s\n", dir, currItem->d_name);
-    }
+    if(zero == terminatore)
+        printf("ALLora C fa schifo a dio");
 
     return 0;
 }

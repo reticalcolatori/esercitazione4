@@ -86,11 +86,13 @@ int main(int argc, char const *argv[]) {
     //1) Se c'era un \n lo aggiungo al buffer.
     //2) Aggiungo un \0 finale.
     //Al server da noia il \n?????
-    while((fgets(nomeDirettorio, DIM_BUFFER, stdin)) != NULL){
+    
+    //while((fgets(nomeDirettorio, DIM_BUFFER, stdin)) != NULL){
+    while(gets(nomeDirettorio)){
 
         //Invio al server fino a \n quindi non server un +1
-        int lenNomeDirettorio = strlen(nomeDirettorio) - 1;
-        nomeDirettorio[lenNomeDirettorio] = '\0';
+        //int lenNomeDirettorio = strlen(nomeDirettorio) - 1;
+        //nomeDirettorio[lenNomeDirettorio] = '\0';
 
         //prendo tempo di start
         clock_t begin = clock();
@@ -115,12 +117,6 @@ int main(int argc, char const *argv[]) {
             printf("Client: correttamente connesso al server!\n");
         }
 
-        for (int i = 0; i < strlen(nomeDirettorio); i++)
-        {
-            printf("CLIENT NOME DIRETTORIO: %d --> %c\n", i, nomeDirettorio[i]);
-        }
-        
-
         //Invio al server 
         if((write(fdSocket, nomeDirettorio, strlen(nomeDirettorio)+1)) < 0){
             perror("Errore durante la scrittura del nome del direttorio al server.");
@@ -143,33 +139,27 @@ int main(int argc, char const *argv[]) {
         printf("CLIENT: in attesa di ricevere risposta dal server...\n");
 
         while((nread = read(fdSocket, &currCh, sizeof(char))) > 0){
-            printf("%c", currCh);
-            
-            if(currCh == zero){
-                printf("CLIENT: terminato di ricevere i nomi dei file per la directory corrente!\n");
-                break;
-            }
-
-            /*
             if(currCh == '\n'){
                 //Fine linea invia ancora.
                 //Aggiungo terminatore
                 lineIN[counter] = '\0';
                 printf("%s\n", lineIN);
-            }else if(currCh == zero){
+                strcpy(lineIN, "");
+                counter = 0;
+            } else if(currCh == zero){
                 //Terminatore ha finito di mandare i nomi dei file.
                 //Qui dovrei aver il buffer della driver vuoto fino a nuova richiesta.
                 //Aggiungo terminatore
                 printf("CLIENT: ricevuto il carattere 0 che mi indica che ho finito di ricevere i file della directory corrente!\n");
                 lineIN[counter] = '\0';
-               //-------------------------------- printf("%s\n", lineIN);
+
                 //esco
                 break;
             }else{
                 //Sto leggendo la riga.
                 lineIN[counter++] = currCh;
             }
-            */
+            
         }             
 
         //Controllo sul read:
@@ -192,7 +182,7 @@ int main(int argc, char const *argv[]) {
         printf("CLIENT: tempo di esecuzione %f sec\n", time_spent);
 
         printf("Inserisci un nome di direttorio (EOF per uscire):\n");
-        gets(okstr); 
+        //gets(okstr); 
         //consumo il restante della linea (\n compreso), altrimenti alla prossima iterazione la fgets avrebbe già
         //il resto della linea da leggere
     }

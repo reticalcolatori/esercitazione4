@@ -1,5 +1,3 @@
-ciao
 prova
-un file molto bello ciao ciao ciao
-prova un file di ciao 
-con un 
+ciao ciao ciao
+miao

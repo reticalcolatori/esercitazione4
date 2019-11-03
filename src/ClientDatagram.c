@@ -1,5 +1,3 @@
-/* OpDatagram_client: richiede la valutazione di un'operazione tra due interi */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

@@ -29,7 +29,7 @@ int main(int argc, char **argv)
 	int lenNomeFile, lenParolaEliminare;
 	char nomefile[LINE_LENGTH];
 	char parolaEliminare[LINE_LENGTH];
-	char request[2*LINE_LENGTH];
+	char request[LINE_LENGTH];
 	char answer[LINE_LENGTH];
 
 	char okstr[LINE_LENGTH];
@@ -72,6 +72,9 @@ int main(int argc, char **argv)
 	//Recupero l'indirizzo del server remoto attraverso la funzione gethostbyname.
 	host = gethostbyname (argv[1]); 
 
+	//reset contenuto request
+	bzero(request, sizeof(request));
+
 	//Verifica host
 	if (host == NULL){
 		printf("%s not found in /etc/hosts\n", argv[1]);
@@ -100,7 +103,7 @@ int main(int argc, char **argv)
 	printf("Client: bind socket ok, alla porta %i\n", clientaddr.sin_port);
 
 	/* CORPO DEL CLIENT: ciclo di accettazione di richieste da utente */
-	printf("nome file, EOF per terminare: ");
+	printf("Nome file, EOF per terminare:\n");
 
 	while ((fgets(nomefile, LINE_LENGTH, stdin)) != NULL )
 	{
@@ -135,7 +138,9 @@ int main(int argc, char **argv)
 		strncat(request, nomefile, strlen(nomefile) - 1);
 		strcat(request, ",");
 		strncat(request, parolaEliminare, strlen(parolaEliminare) - 1);
+		//request[strlen(request)] = '\0';
 
+		printf("CLIENT: invio al server la richiesta --> %s\n", request);
 		//request --> ciao.txt,prova
 
 		//Lunghezza struttura indirizzo.
@@ -162,7 +167,7 @@ int main(int argc, char **argv)
 			printf("Errore dal server : %i\n", ris);
 		}
 
-		strcpy(request, "");
+		bzero(request, sizeof(request));	
 		printf("nome file, EOF per terminare: \n");
 		//gets(okstr); 
 		//consumo il restante della linea (\n compreso), altrimenti alla prossima iterazione la fgets avrebbe già

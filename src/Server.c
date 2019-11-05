@@ -348,8 +348,12 @@ int main(int argc, char **argv) {
             const char *delimiter = ",";
             fileName = strtok(request, delimiter);
             wordToDelete = strtok(NULL, delimiter);
+            wordToDelete[strlen(wordToDelete)] = '\0';
 
-            printf("SERVER DATAGRAM: ricevuto file %s e parola da eliminare %s\n", fileName, wordToDelete);
+            printf("SERVER DATAGRAM: ricevuto file %s\nParola da eliminare %s\n", fileName, wordToDelete);
+
+            for(int i = 0; i < strlen(wordToDelete); i++)
+                printf("%c\n", wordToDelete[i]);
 
             if (( fdCurrFile = open(fileName, O_RDWR)) < 0 ) {
                 //non riesco ad aprire il file
@@ -392,14 +396,18 @@ int main(int argc, char **argv) {
 				    //controllo che il carattere letto sia della mia parola e non un delimitatore
                     if(tmpChar == ' ' || tmpChar == '\n'){
                         //ho terminato una parola --> valuto 
+                        printf("SERVER: terminato di leggere una parola %s\n", currWord);
 
                         //aggiungo il terminatore
                         currWord[pos] = '\0'; 
 
                         //confronto le due stringhe
+                        printf("Lunghezza parola da eliminare %d lunghezza parola corrente %d", strlen(wordToDelete), strlen(currWord));
                         resCmp = strcmp(wordToDelete, currWord);
                         if (resCmp != 0) {
                             //le 2 "parole" sono diverse --> la scrivo su file tmp
+                            printf("SERVER: terminato di leggere una parola %s diversa da quella da eliminare %s\n", currWord, wordToDelete);
+
                             //write(fdtmpFile, currWord, strlen(currWord) + 1);
                             if(write(fdtmpFile, currWord, strlen(currWord)) < 0){
                                 perror("Errore scrittura su file temporaneo");
@@ -408,9 +416,11 @@ int main(int argc, char **argv) {
                         } else {
                             //le 2 "parole" sono uguali --> non la scrivo su file e incremento
                             res++;
+                            printf("SERVER: terminato di leggere una parola %s uguale a quella da eliminare %s occ = %d\n", currWord, wordToDelete, res);
                         }
 
-                        strcpy(currWord, "");
+                        //strcpy(currWord, "");
+                        bzero(currWord, sizeof(currWord));
                         pos=0;
 
                         
@@ -435,15 +445,13 @@ int main(int argc, char **argv) {
                     write(fdCurrFile, &ch, sizeof(char));
                 
                 //Invio risposta.
-                char answer[DIM_BUFFER];
-                sprintf(answer, "%d", res);
                 if (sendto(udpFd, &res, sizeof(res), 0, (struct sockaddr *)&cliaddr, lenAddress)<0) {
                     perror("sendto ");
                     continue;
                 }
 
                 //ripristino il contenuto della variabile dove immagazzino le richieste degli utenti
-                strcpy(request, "");
+                bzero(request, sizeof(request));
 
                 //chiudo il file e resetto numero parole eliminate
                 close(fdCurrFile);

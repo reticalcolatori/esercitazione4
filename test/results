@@ -1,28 +1,47 @@
 Verifica del client stream:
 Aumento il numero di file nelle cartelle.
+
+CSTREAM
+
 100 Files:	00.000648 sec
 1100 Files:	00.012666 sec
 11100 Files:	00.127150 sec
 111100 Files:	01.285877 sec
 1111100 Files:	12.800298 sec
 
+SERVER
+
+100 Files:	00.000201 sec
+1100 Files:	00.002123 sec
+11100 Files:	00.012878 sec
+111100 Files:	00.119228 sec
+1111100 Files:	01.182337 sec
 
 Verifica del client datagram:
 Creo un file da circa 100 caratteri per linea:
 Aumento il numero di linee.
 
+CDATAGRAM
+
 Parola da eliminare Lorem (ESISTENTE)
-100 Lines:	00.000087 sec
-1000 Lines:	00.000107 sec
-10000 Lines:	00.000097 sec
+100 Lines:	00.000115 sec
+1000 Lines:	00.000097 sec
+10000 Lines:	00.000099 sec
 
 Parola da eliminare stegosauro (NON ESISTENTE)
-100 Lines:	00.
-1000 Lines:	00.
-10000 Lines:	00.000086 sec
+100 Lines:	00.000111 sec
+1000 Lines:	00.000098 sec
+10000 Lines:	00.000899 sec
 
-Sembra che a lato client non funzioni la misurazione del tempo???
-In realtà i dati sono fallati e il tempo molto maggiore di quello
-scritto: rifaccio i test dopo mettendo la lettura del clock a lato server.
+SERVER
 
-Forse dati errati nel client perchè andando in sospensione non conta i clock?
+Parola da eliminare Lorem (ESISTENTE)
+100 Lines:	00.200515 sec
+1000 Lines:	01.992213 sec
+10000 Lines:	20.108599 sec
+
+Parola da eliminare stegosauro (NON ESISTENTE)
+100 Lines:	00.200438 sec
+1000 Lines:	02.006268 sec
+10000 Lines:	20.070809 sec
+

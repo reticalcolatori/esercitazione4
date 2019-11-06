@@ -223,6 +223,9 @@ int main(int argc, char **argv) {
                         printf("SERVER FIGLIO (%d): ricevuto EOF, termino.\n", getpid());
                         break;
                     } else {
+			//Start time
+			clock_t begin = clock();
+
                         // Ho letto il nome del file, logica applicativa
                         DIR *currDir;
                         struct dirent *currItem;
@@ -291,9 +294,15 @@ int main(int argc, char **argv) {
                         //devo comunicare al client che ho terminato di inviare
                         //tutti i nomi di file per la dir che mi ha passato
                         write(fdConnect, &zero, sizeof(char));
+
+
+			//End time
+			clock_t end = clock();
+			double time_spent = (double)(end-begin)/CLOCKS_PER_SEC;
+	                printf("SERVER STREAM: tempo di esecuzione %lf sec\n", time_spent);
+
                         
                     } //if..else
-                    
                 } //for
                 
                 // Quando esco dal ciclo mi devo ricordare di chiudere la socket connessa ho ricevuto EOF!
@@ -354,6 +363,9 @@ int main(int argc, char **argv) {
 
             for(int i = 0; i < strlen(wordToDelete); i++)
                 printf("%c\n", wordToDelete[i]);
+
+            //Start time
+            clock_t begin = clock();
 
             if (( fdCurrFile = open(fileName, O_RDWR)) < 0 ) {
                 //non riesco ad aprire il file
@@ -449,6 +461,11 @@ int main(int argc, char **argv) {
                     perror("sendto ");
                     continue;
                 }
+
+		//Stop time
+		clock_t end = clock();
+		double time_spent = (double)(end-begin)/CLOCKS_PER_SEC;
+		printf("SERVER DATAGRAM: tempo di esecuzione %lf sec\n", time_spent);
 
                 //ripristino il contenuto della variabile dove immagazzino le richieste degli utenti
                 bzero(request, sizeof(request));
